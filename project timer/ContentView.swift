@@ -11,8 +11,8 @@ let pink: Color = Color(hue: 270/360, saturation: 1, brightness: 0.75)
 let yellow: Color = Color(hue: 45/360, saturation: 0.98, brightness: 0.90)
 
 struct ContentView: View {
-    @State var lastStartTime: Date = .distantPast // Storage.getDate(of: .lastStartTime)
-    @State var lastEndTime: Date = .distantPast + 1000 // Storage.getDate(of: .lastEndTime)
+    @State var lastStartTime: Date = Storage.getDate(of: .lastStartTime)
+    @State var lastEndTime: Date = Storage.getDate(of: .lastEndTime)
     @State var possibleDuration: Int? = nil
     @State var possibleEndTime: (Int, Int)? = nil
     @State var setDuration = false
@@ -53,6 +53,9 @@ struct ContentView: View {
             })
         }
         .onChange(of: update, {
+            // TODO move all of this elsewhere, reorganize, probably into separate files.
+            // TODO consider ways that i could be doing updates less often and interpolating, or do no animation whatsoever (probably better)
+            //          test these options with energy managmenet to understand the tradeoffs
             let timeToEnd = Date.now.distance(to: lastEndTime)
             show1mWarning = (58.9..<60).contains(timeToEnd)
             if (7..<18).contains(timeToEnd) {
@@ -77,8 +80,12 @@ struct ContentView: View {
     }
     
     var timerActiveView: some View {
-        ZStack {
-            Rectangle()
+        let minCooldownString = getDateString(Date.now + lastStartTime.distance(to: .now))
+        let maxCooldownString = getDateString(lastEndTime + lastStartTime.distance(to: lastEndTime))
+        let cooldownString = (cancelVisible && projectActive) ? minCooldownString : maxCooldownString
+        
+        return ZStack {
+            Rectangle() // TODO change this out to be a pink circle that comes out of the pink circle when it reaches the apex w 1 min to
                 .fill(.shadow(.inner(color: Color(hue: 300/360, saturation: 0.75, brightness: 1), radius: 120)))
                 .foregroundStyle(.black)
                 .frame(width: UIScreen.main.bounds.width + 220, height: UIScreen.main.bounds.height + 220)
@@ -90,43 +97,35 @@ struct ContentView: View {
                 .frame(width: 1000, height: 1000)
                 .opacity(show15sWarning != nil ? 1 : 0)
             if projectActive {
-                Circle()
+                Circle() // TODO redo all this animation and probably split this into 3 separate circles so i don't have to worry about the resetting issue
+                // i want to be able to come in at any given time and have everything in a set place, and remove as many of these if {} setups as possible in the view
                     .fill(yellow)
                     .frame(width: finalWarning ? 0 : 250, height: finalWarning ? 0 : 250)
                     .animation(.linear(duration: 1), value: finalWarning)
+                    .onAppear {
+                        UIApplication.shared.isIdleTimerDisabled = true
+                    }
+                    .onDisappear {
+                        UIApplication.shared.isIdleTimerDisabled = false
+                    }
             }
             VStack {
                 Spacer().frame(height: 171)
                 Text(getDateString(lastEndTime))
                     .font(.custom("Baskerville", size: 36))
                     .foregroundStyle(.black)
+                    .frame(height: 40)
                 Text(getProjectTimeString())
-                    .font(.custom("Baskerville", size: 36))
+                    .font(.custom("Baskerville", size: 48))
                     .foregroundStyle(.black)
-                HStack {
-                    Text(getMinimumCooldownTimeString())
-                    if projectActive {
-                        Text("–")
-                        Text(getMaximumCooldownTimeString())
-                    }
-                }
-                .font(.custom("Baskerville", size: projectActive ? 24 : 36))
-                .foregroundStyle(pink)
-                HStack {
-                    Text(lastEndTime > .now ? getDateString(Date.now + lastStartTime.distance(to: .now)) : getDateString(lastEndTime + lastStartTime.distance(to: lastEndTime)))
-                    if projectActive {
-                        Text("–")
-                        Text(getDateString(lastEndTime + lastStartTime.distance(to: lastEndTime)))
-                            .onAppear {
-                                UIApplication.shared.isIdleTimerDisabled = true
-                            }
-                            .onDisappear {
-                                UIApplication.shared.isIdleTimerDisabled = false
-                            }
-                    }
-                }
-                .font(.custom("Baskerville", size: projectActive ? 24 : 36))
-                .foregroundStyle(pink)
+                    .frame(height: 50)
+                    .padding(.bottom, 5)
+                Text((cancelVisible || !projectActive) ? getMinimumCooldownTimeString() : getMaximumCooldownTimeString())
+                    .font(.custom("Baskerville", size: 30))
+                    .foregroundStyle(pink)
+                Text(cooldownString)
+                    .font(.custom("Baskerville", size: 30))
+                    .foregroundStyle(pink)
                 Spacer().frame(height: 100)
                 Button(action: {
                     withAnimation {
@@ -140,7 +139,6 @@ struct ContentView: View {
                 .opacity(cancelVisible && lastEndTime > .now ? 1 : 0)
             }
         }
-        .animation(.easeIn(duration: 0.7), value: projectActive)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.black)
         .onTapGesture {
@@ -161,13 +159,14 @@ struct ContentView: View {
                 .font(.custom("Baskerville", size: 36))
                 .foregroundStyle(yellow)
             Text(getTimeString(proposedDuration))
-                .font(.custom("Baskerville", size: 36))
+                .font(.custom("Baskerville", size: 48))
                 .foregroundStyle(yellow)
+                .padding(.bottom, 5)
             Text(getTimeString(proposedDuration*2))
-                .font(.custom("Baskerville", size: 24))
+                .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Text(getDateString(.now + proposedDuration*2))
-                .font(.custom("Baskerville", size: 24))
+                .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Spacer().frame(height: 77.5)
             Button(action: {
@@ -202,7 +201,7 @@ struct ContentView: View {
     var setDurationView: some View {
         let proposedDuration = getProposedDuration()
         return VStack {
-            Spacer().frame(height: 71)
+            Spacer().frame(height: 71 + 77.5)
             Text(getDateString(.now + proposedDuration))
                 .font(.custom("Baskerville", size: 36))
                 .foregroundStyle(yellow)
@@ -216,17 +215,20 @@ struct ContentView: View {
                     .frame(width: 90)
                 Text("m")
             }
-            .font(.custom("Baskerville", size: 36))
+            .font(.custom("Baskerville", size: 48))
             .foregroundStyle(yellow)
+            .padding(.bottom, 5)
             Text(getTimeString(proposedDuration*2))
-                .font(.custom("Baskerville", size: 24))
+                .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Text(getDateString(.now + proposedDuration*2))
-                .font(.custom("Baskerville", size: 24))
+                .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
+            Spacer().frame(height: 77.5)
             Button(action: {
                 if durationText != "" {
                     startTimer(with: proposedDuration)
+                    setDuration = false
                 }
             }, label: {
                 Text("start")
@@ -237,13 +239,17 @@ struct ContentView: View {
         .onTapGesture {
             setDuration = false
             possibleDuration = nil
+            durationText = ""
+        }
+        .onAppear {
+            durationText = ""
         }
     }
     
     var setEndTimeView: some View {
         let proposedDuration = getProposedDuration()
         return VStack {
-            Spacer().frame(height: 71)
+            Spacer().frame(height: 71 + 77.5)
             HStack(spacing: 0) {
                 Text(",")
                 TextField("", text: $endTimeText)
@@ -257,17 +263,20 @@ struct ContentView: View {
             .font(.custom("Baskerville", size: 36))
             .foregroundStyle(yellow)
             Text(getTimeString(proposedDuration))
-                .font(.custom("Baskerville", size: 36))
+                .font(.custom("Baskerville", size: 48))
                 .foregroundStyle(yellow)
+                .padding(.bottom, 5)
             Text(getTimeString(proposedDuration*2))
-                .font(.custom("Baskerville", size: 24))
+                .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Text(getDateString(.now + proposedDuration*2))
-                .font(.custom("Baskerville", size: 24))
+                .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
+            Spacer().frame(height: 77.5)
             Button(action: {
                 if endTimeText != "" {
                     startTimer(with: proposedDuration)
+                    setEndTime = false
                 }
             }, label: {
                 Text("start")
@@ -278,13 +287,17 @@ struct ContentView: View {
         .onTapGesture {
             setEndTime = false
             possibleEndTime = nil
+            endTimeText = ""
+        }
+        .onAppear {
+            endTimeText = ""
         }
     }
     
     var timerOptionsView: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("stats coming soon")
+            Text("project timer")
             Spacer()
             HStack {
                 timer(10800)
@@ -303,8 +316,8 @@ struct ContentView: View {
             }
             HStack {
                 timer(180)
-                timer(4)
-                timer(20)
+                timer(120)
+                timer(60)
             }
             HStack {
                 Button(action: {
@@ -320,6 +333,7 @@ struct ContentView: View {
             }
             Spacer().frame(height: 50)
         }
+        .font(.custom("Baskerville", size: 20))
     }
     
     func timer(_ time: Int) -> some View {
@@ -350,7 +364,7 @@ struct ContentView: View {
             if advanceDay {
                 newEndTime = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: .now.addingTimeInterval(86400)) ?? .now
             } else {
-                newEndTime = Calendar.current.date(bySettingHour: possibleEndTime.0, minute: possibleEndTime.1, second: 0, of: .now) ?? .now
+                newEndTime = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: .now) ?? .now
             }
             return Date.now.distance(to: newEndTime)
         } else { return 0 }
