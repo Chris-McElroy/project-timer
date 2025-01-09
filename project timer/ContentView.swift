@@ -11,8 +11,7 @@ let pink: Color = Color(hue: 270/360, saturation: 1, brightness: 0.75)
 let yellow: Color = Color(hue: 45/360, saturation: 0.98, brightness: 0.90)
 
 struct ContentView: View {
-    @State var lastStartTime: Date = Storage.getDate(of: .lastStartTime)
-    @State var lastEndTime: Date = Storage.getDate(of: .lastEndTime)
+    @ObservedObject var storage: Storage = Storage.main
     @State var possibleDuration: Int? = nil
     @State var possibleEndTime: (Int, Int)? = nil
     @State var setDuration = false
@@ -27,6 +26,14 @@ struct ContentView: View {
     @State var projectActive: Bool = false
     @State var finalWarning: Bool = false // TODO fix too-quick transitions when time naturally runs out on either timer
     @FocusState var focusState: Bool
+    
+    var lastStartTime: Date {
+        storage.lastStartTime
+    }
+    
+    var lastEndTime: Date {
+        storage.lastEndTime
+    }
     
     var body: some View {
         VStack {
@@ -130,8 +137,8 @@ struct ContentView: View {
                 Button(action: {
                     withAnimation {
                         cancelVisible = false
-                        lastEndTime = .now
-                        Storage.storeDate(of: .lastEndTime, lastEndTime)
+                        storage.lastEndTime = .now
+                        storage.storeDate(of: .lastEndTime, lastEndTime)
                     }
                 }, label: {
                     Text("cancel")
@@ -192,9 +199,6 @@ struct ContentView: View {
         .onTapGesture {
             possibleDuration = nil
             possibleEndTime = nil
-        }
-        .onAppear {
-            print(finalWarning)
         }
     }
     
@@ -340,7 +344,7 @@ struct ContentView: View {
         Button(action: {
             possibleDuration = time
         }, label: {
-            Text(time >= 3600 ? String(time/3600) + "h" : String(time/60) + (time % 60 == 0 ? "" : ".5") + "m")
+            Text(time >= 3600 ? String(time/3600) + "h" : String(time/60) + (time % 60 == 0 ? "m" : ".30s"))
         }).selectionDisabled()
     }
     
@@ -372,10 +376,9 @@ struct ContentView: View {
     
     func startTimer(with duration: TimeInterval) {
         withAnimation {
-            lastStartTime = .now
-            lastEndTime = .now + duration
-            Storage.storeDate(of: .lastStartTime, lastStartTime)
-            Storage.storeDate(of: .lastEndTime, lastEndTime)
+            storage.lastStartTime = .now
+            storage.lastEndTime = .now + duration
+            storage.storeDates()
             possibleDuration = nil
             possibleEndTime = nil
             focusState = false
@@ -413,10 +416,15 @@ struct ContentView: View {
     
     func getTimeString(_ time: TimeInterval) -> String {
         let s = Int(time.rounded(.down))
-        if s >= 60 {
+        if s >= 60 && s % 60 == 0 {
             let hour: String = s >= 3600 ? String(s/3600) + "." : ""
             let min: String = String((s % 3600)/60)
             return hour + min + "m"
+        } else if s >= 60 {
+            let hour: String = s >= 3600 ? String(s/3600) + "." : ""
+            let min: String = String((s % 3600)/60) + "."
+            let sec: String = String(s % 60)
+            return hour + min + sec + "s"
         } else {
             return String(s) + "s"
         }
@@ -501,10 +509,9 @@ struct ContentView: View {
                     
                 }
                 .padding(8)
-                .background(.clear)
+                .background(.black.opacity(0.0001))
         }
     }
-
 }
 
 extension String {
