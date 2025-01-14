@@ -27,17 +27,9 @@ struct ContentView: View {
     @State var finalWarning: Bool = false // TODO fix too-quick transitions when time naturally runs out on either timer
     @FocusState var focusState: Bool
     
-    var lastStartTime: Date {
-        storage.lastStartTime
-    }
-    
-    var lastEndTime: Date {
-        storage.lastEndTime
-    }
-    
     var body: some View {
         VStack {
-            if lastEndTime + lastStartTime.distance(to: lastEndTime) > .now {
+            if storage.activeProject || storage.activeCooldown {
                 timerActiveView
             } else if setDuration {
                 setDurationView
@@ -63,7 +55,7 @@ struct ContentView: View {
             // TODO move all of this elsewhere, reorganize, probably into separate files.
             // TODO consider ways that i could be doing updates less often and interpolating, or do no animation whatsoever (probably better)
             //          test these options with energy managmenet to understand the tradeoffs
-            let timeToEnd = Date.now.distance(to: lastEndTime)
+            let timeToEnd = storage.lastEndTime - Date.now.timeIntervalSinceReferenceDate
             show1mWarning = (58.9..<60).contains(timeToEnd)
             if (7..<18).contains(timeToEnd) {
                 show15sWarning = CGFloat(3000*(18 - timeToEnd)/11)
@@ -87,8 +79,8 @@ struct ContentView: View {
     }
     
     var timerActiveView: some View {
-        let minCooldownString = getDateString(Date.now + lastStartTime.distance(to: .now))
-        let maxCooldownString = getDateString(lastEndTime + lastStartTime.distance(to: lastEndTime))
+        let minCooldownString = getDateString(Date.now + Date.now.timeIntervalSinceReferenceDate - storage.lastStartTime)
+        let maxCooldownString = getDateString(Date(timeIntervalSinceReferenceDate: storage.cooldownEndTime))
         let cooldownString = (cancelVisible && projectActive) ? minCooldownString : maxCooldownString
         
         return ZStack {
@@ -118,7 +110,7 @@ struct ContentView: View {
             }
             VStack {
                 Spacer().frame(height: 171)
-                Text(getDateString(lastEndTime))
+                Text(getDateString(Date(timeIntervalSinceReferenceDate: storage.lastEndTime)))
                     .font(.custom("Baskerville", size: 36))
                     .foregroundStyle(.black)
                     .frame(height: 40)
@@ -137,19 +129,19 @@ struct ContentView: View {
                 Button(action: {
                     withAnimation {
                         cancelVisible = false
-                        storage.lastEndTime = .now
-                        storage.storeDate(of: .lastEndTime, lastEndTime)
+                        storage.lastEndTime = Date.now.timeIntervalSinceReferenceDate
+                        storage.storeDate(of: .lastEndTime, storage.lastEndTime)
                     }
                 }, label: {
                     Text("cancel")
                 })
-                .opacity(cancelVisible && lastEndTime > .now ? 1 : 0)
+                .opacity(cancelVisible && storage.lastEndTime > Date.now.timeIntervalSinceReferenceDate ? 1 : 0)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.black)
         .onTapGesture {
-            if lastEndTime > .now {
+            if storage.lastEndTime > Date.now.timeIntervalSinceReferenceDate {
                 cancelVisible.toggle()
             }
         }
@@ -376,8 +368,8 @@ struct ContentView: View {
     
     func startTimer(with duration: TimeInterval) {
         withAnimation {
-            storage.lastStartTime = .now
-            storage.lastEndTime = .now + duration
+            storage.lastStartTime = Date.now.timeIntervalSinceReferenceDate
+            storage.lastEndTime = storage.lastStartTime + duration
             storage.storeDates()
             possibleDuration = nil
             possibleEndTime = nil
@@ -389,7 +381,7 @@ struct ContentView: View {
     }
     
     func getProjectTimeString() -> String {
-        let diffInterval = Date.now.distance(to: lastEndTime)
+        let diffInterval = storage.lastEndTime - Date.now.timeIntervalSinceReferenceDate
         if diffInterval < 0 {
             return ""
         }
@@ -397,40 +389,35 @@ struct ContentView: View {
     }
     
     func getMinimumCooldownTimeString() -> String {
-        if lastEndTime > .now {
-            let diffInterval = lastStartTime.distance(to: .now)
+        if storage.lastEndTime > Date.now.timeIntervalSinceReferenceDate {
+            let diffInterval = Date.now.timeIntervalSinceReferenceDate - storage.lastStartTime
             if diffInterval < 0 { return "" }
             return getTimeString(diffInterval)
         } else {
-            let diffInterval = Date.now.distance(to: lastEndTime + lastStartTime.distance(to: lastEndTime))
+            let diffInterval = storage.cooldownEndTime - Date.now.timeIntervalSinceReferenceDate
             if diffInterval < 0 { return "" }
             return getTimeString(diffInterval)
         }
     }
     
     func getMaximumCooldownTimeString() -> String {
-        let diffInterval = lastStartTime.distance(to: lastEndTime)
+        let diffInterval = storage.projectTime
         if diffInterval < 0 { return "" }
         return getTimeString(diffInterval)
     }
     
     func getTimeString(_ time: TimeInterval) -> String {
         let s = Int(time.rounded(.down))
-        if s >= 60 && s % 60 == 0 {
+        if s >= 60 {
             let hour: String = s >= 3600 ? String(s/3600) + "." : ""
             let min: String = String((s % 3600)/60)
             return hour + min + "m"
-        } else if s >= 60 {
-            let hour: String = s >= 3600 ? String(s/3600) + "." : ""
-            let min: String = String((s % 3600)/60) + "."
-            let sec: String = String(s % 60)
-            return hour + min + sec + "s"
         } else {
             return String(s) + "s"
         }
     }
     
-    func getDateString(_ date: Date) -> String {
+    func getDateString(_ date: Date) ->     String {
         let dc = Calendar.current.dateComponents([.hour, .minute], from: date)
         return "," + String(dc.hour ?? 0) + "." + String(dc.minute ?? 0)
     }

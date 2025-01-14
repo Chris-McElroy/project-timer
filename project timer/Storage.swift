@@ -19,8 +19,8 @@ enum Key: String {
 class Storage: ObservableObject {
     static let main: Storage = Storage()
     
-    @Published var lastStartTime: Date
-    @Published var lastEndTime: Date
+    @Published var lastStartTime: TimeInterval
+    @Published var lastEndTime: TimeInterval
     
     var ref: DatabaseReference!
     var myID: String = Storage.string(.uuid) ?? "00000000000000000000000000000000"
@@ -44,20 +44,18 @@ class Storage: ObservableObject {
         }
         _ = ref.observe(DataEventType.value, with: { snapshot in
             if let dict = snapshot.value as? [String: [String: Double]] {
-                guard let mostRecent = dict.max(by: { l, r in
-                    // TODO test this once 4 has it too!
-                    if l.value[Key.lastStartTime.rawValue] == r.value[Key.lastStartTime.rawValue] {
-                        return (l.value[Key.lastEndTime.rawValue] ?? 0) > (r.value[Key.lastEndTime.rawValue] ?? 0)
+                guard let otherID = dict.keys.first(where: { $0 != self.myID }) else { return }
+                guard let otherStart = dict[otherID]?[Key.lastStartTime.rawValue] else { return }
+                guard let otherEnd = dict[otherID]?[Key.lastEndTime.rawValue] else { return }
+                if otherStart !~ self.lastStartTime {
+                    if otherStart > self.lastEndTime {
+                        self.lastStartTime = otherStart
+                        self.lastEndTime = otherEnd
+                        self.storeDates()
                     }
-                    return (l.value[Key.lastStartTime.rawValue] ?? 0) < (r.value[Key.lastStartTime.rawValue] ?? 0)
-                }) else { return }
-                if mostRecent.key != self.myID {
-                    if let newStart = mostRecent.value[Key.lastStartTime.rawValue], newStart != self.lastStartTime.timeIntervalSinceReferenceDate {
-                        self.lastStartTime = Date.init(timeIntervalSinceReferenceDate: newStart)
-                        self.storeDate(of: .lastStartTime, self.lastStartTime)
-                    }
-                    if let newEnd = mostRecent.value[Key.lastEndTime.rawValue], newEnd != self.lastEndTime.timeIntervalSinceReferenceDate {
-                        self.lastEndTime = Date.init(timeIntervalSinceReferenceDate: newEnd)
+                } else if otherEnd !~ self.lastEndTime {
+                    if otherEnd < self.lastEndTime {
+                        self.lastEndTime = otherEnd
                         self.storeDate(of: .lastEndTime, self.lastEndTime)
                     }
                 }
@@ -65,18 +63,15 @@ class Storage: ObservableObject {
         })
     }
     
-    func storeDate(of key: Key, _ date: Date) {
-        let timeElapsed = date.timeIntervalSinceReferenceDate
-        UserDefaults.standard.set(timeElapsed, forKey: key.rawValue)
-        ref.child(myID).child(key.rawValue).setValue(timeElapsed)
+    func storeDate(of key: Key, _ date: TimeInterval) {
+        UserDefaults.standard.set(date, forKey: key.rawValue)
+        ref.child(myID).child(key.rawValue).setValue(date)
     }
     
     func storeDates() {
-        let startDouble = lastStartTime.timeIntervalSinceReferenceDate
-        let endDouble = lastEndTime.timeIntervalSinceReferenceDate
-        UserDefaults.standard.set(startDouble, forKey: Key.lastStartTime.rawValue)
-        UserDefaults.standard.set(endDouble, forKey: Key.lastEndTime.rawValue)
-        ref.child(myID).setValue([Key.lastStartTime.rawValue: startDouble, Key.lastEndTime.rawValue: endDouble])
+        UserDefaults.standard.set(lastStartTime, forKey: Key.lastStartTime.rawValue)
+        UserDefaults.standard.set(lastEndTime, forKey: Key.lastEndTime.rawValue)
+        ref.child(myID).setValue([Key.lastStartTime.rawValue: lastStartTime, Key.lastEndTime.rawValue: lastEndTime])
     }
     
     static func set(_ value: Any?, for key: Key) {
@@ -87,11 +82,39 @@ class Storage: ObservableObject {
         UserDefaults.standard.string(forKey: key.rawValue)
     }
     
-    private static func getDate(of key: Key) -> Date {
-        let timeElapsed = getDouble(for: key)
-        return Date.init(timeIntervalSinceReferenceDate: timeElapsed)
+    private static func getDate(of key: Key) -> TimeInterval {
+        getDouble(for: key)
     }
     private static func getDouble(for key: Key) -> Double {
         UserDefaults.standard.double(forKey: key.rawValue)
+    }
+    
+    var cooldownEndTime: TimeInterval {
+        lastEndTime + projectTime
+    }
+    
+    var activeProject: Bool {
+        return Date.now.timeIntervalSinceReferenceDate <= lastEndTime
+    }
+    
+    var activeCooldown: Bool {
+        return Date.now.timeIntervalSinceReferenceDate > lastEndTime && cooldownEndTime > Date.now.timeIntervalSinceReferenceDate
+    }
+    
+    var projectTime: TimeInterval {
+        lastEndTime - lastStartTime
+    }
+}
+
+infix operator ~ : ComparisonPrecedence
+infix operator !~ : ComparisonPrecedence
+
+extension Double {
+    static func ~(lhs: Double, rhs: Double) -> Bool {
+        return abs(lhs - rhs) < 0.00001
+    }
+    
+    static func !~(lhs: Double, rhs: Double) -> Bool {
+        return abs(lhs - rhs) >= 0.00001
     }
 }
