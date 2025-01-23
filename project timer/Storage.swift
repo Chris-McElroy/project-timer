@@ -16,6 +16,8 @@ enum Key: String {
     case uuid = "uuid"
 }
 
+let projectCooldownRatio: Double = 4.0
+
 class Storage: ObservableObject {
     static let main: Storage = Storage()
     
@@ -90,7 +92,7 @@ class Storage: ObservableObject {
     }
     
     var cooldownEndTime: TimeInterval {
-        lastEndTime + projectTime
+        lastEndTime + projectCooldownRatio*projectTime
     }
     
     var activeProject: Bool {

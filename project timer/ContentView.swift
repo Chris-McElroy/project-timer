@@ -79,7 +79,7 @@ struct ContentView: View {
     }
     
     var timerActiveView: some View {
-        let minCooldownString = getDateString(Date.now + Date.now.timeIntervalSinceReferenceDate - storage.lastStartTime)
+        let minCooldownString = getDateString(Date.now + projectCooldownRatio*(Date.now.timeIntervalSinceReferenceDate - storage.lastStartTime))
         let maxCooldownString = getDateString(Date(timeIntervalSinceReferenceDate: storage.cooldownEndTime))
         let cooldownString = (cancelVisible && projectActive) ? minCooldownString : maxCooldownString
         
@@ -161,10 +161,10 @@ struct ContentView: View {
                 .font(.custom("Baskerville", size: 48))
                 .foregroundStyle(yellow)
                 .padding(.bottom, 5)
-            Text(getTimeString(proposedDuration*2))
+            Text(getTimeString(proposedDuration*(1 + projectCooldownRatio)))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
-            Text(getDateString(.now + proposedDuration*2))
+            Text(getDateString(.now + proposedDuration*(1 + projectCooldownRatio)))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Spacer().frame(height: 77.5)
@@ -214,10 +214,10 @@ struct ContentView: View {
             .font(.custom("Baskerville", size: 48))
             .foregroundStyle(yellow)
             .padding(.bottom, 5)
-            Text(getTimeString(proposedDuration*2))
+            Text(getTimeString(proposedDuration*(1 + projectCooldownRatio)))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
-            Text(getDateString(.now + proposedDuration*2))
+            Text(getDateString(.now + proposedDuration*(1 + projectCooldownRatio)))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Spacer().frame(height: 77.5)
@@ -262,10 +262,10 @@ struct ContentView: View {
                 .font(.custom("Baskerville", size: 48))
                 .foregroundStyle(yellow)
                 .padding(.bottom, 5)
-            Text(getTimeString(proposedDuration*2))
+            Text(getTimeString(proposedDuration*(1 + projectCooldownRatio)))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
-            Text(getDateString(.now + proposedDuration*2))
+            Text(getDateString(.now + proposedDuration*(1 + projectCooldownRatio)))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Spacer().frame(height: 77.5)
@@ -392,7 +392,7 @@ struct ContentView: View {
         if storage.lastEndTime > Date.now.timeIntervalSinceReferenceDate {
             let diffInterval = Date.now.timeIntervalSinceReferenceDate - storage.lastStartTime
             if diffInterval < 0 { return "" }
-            return getTimeString(diffInterval)
+            return getTimeString(diffInterval*projectCooldownRatio)
         } else {
             let diffInterval = storage.cooldownEndTime - Date.now.timeIntervalSinceReferenceDate
             if diffInterval < 0 { return "" }
@@ -401,7 +401,7 @@ struct ContentView: View {
     }
     
     func getMaximumCooldownTimeString() -> String {
-        let diffInterval = storage.projectTime
+        let diffInterval = storage.cooldownEndTime - Date.timeIntervalSinceReferenceDate
         if diffInterval < 0 { return "" }
         return getTimeString(diffInterval)
     }
