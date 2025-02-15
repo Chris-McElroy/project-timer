@@ -23,13 +23,16 @@ struct ContentView: View {
     @State var endTimeText: String = ""
     @State var show1mWarning: Bool = false
     @State var show15sWarning: CGFloat? = nil
-    @State var projectActive: Bool = false
+    @State var timerActive: Bool = false
     @State var finalWarning: Bool = false // TODO fix too-quick transitions when time naturally runs out on either timer
     @FocusState var focusState: Bool
+    @State var project: Bool = Storage.bool(.project)
     
     var body: some View {
         VStack {
-            if storage.activeProject || storage.activeCooldown {
+            if project && (storage.projectActive || storage.projectCooldown) {
+                timerActiveView
+            } else if !project && (storage.consumeActive || storage.consumeCooldown) {
                 timerActiveView
             } else if setDuration {
                 setDurationView
@@ -40,6 +43,23 @@ struct ContentView: View {
             } else {
                 timerOptionsView
             }
+            HStack {
+                Button(action: {
+                    project = true
+                    Storage.set(project, for: .project)
+                }, label: {
+                    Text("project")
+                        .bold(project)
+                }).selectionDisabled()
+                Button(action: {
+                    project = false
+                    Storage.set(project, for: .project)
+                }, label: {
+                    Text("consume")
+                        .bold(!project)
+                }).selectionDisabled()
+            }
+            .padding(.bottom, 50)
         }
         .padding(.all, update ? 1 : 1)
         .buttonStyle(Bubble())
@@ -55,7 +75,7 @@ struct ContentView: View {
             // TODO move all of this elsewhere, reorganize, probably into separate files.
             // TODO consider ways that i could be doing updates less often and interpolating, or do no animation whatsoever (probably better)
             //          test these options with energy managmenet to understand the tradeoffs
-            let timeToEnd = storage.lastEndTime - Date.now.timeIntervalSinceReferenceDate
+            let timeToEnd = (project ? storage.projectEnd : storage.consumeEnd) - Date.now.timeIntervalSinceReferenceDate
             show1mWarning = (58.9..<60).contains(timeToEnd)
             if (7..<18).contains(timeToEnd) {
                 show15sWarning = CGFloat(3000*(18 - timeToEnd)/11)
@@ -74,28 +94,28 @@ struct ContentView: View {
                 finalWarning = false
             }
             
-            projectActive = timeToEnd >= 0 || possibleDuration != nil || possibleEndTime != nil
+            timerActive = timeToEnd >= 0 || possibleDuration != nil || possibleEndTime != nil
         })
     }
     
     var timerActiveView: some View {
-        let minCooldownString = getDateString(Date.now + projectCooldownRatio*(Date.now.timeIntervalSinceReferenceDate - storage.lastStartTime))
-        let maxCooldownString = getDateString(Date(timeIntervalSinceReferenceDate: storage.cooldownEndTime))
-        let cooldownString = (cancelVisible && projectActive) ? minCooldownString : maxCooldownString
+        let minCooldownString = getDateString(Date.now + (project ? storage.projectRatio : storage.consumeRatio)*(Date.now.timeIntervalSinceReferenceDate - storage.projectStart))
+        let maxCooldownString = getDateString(Date(timeIntervalSinceReferenceDate: project ? storage.projectCooldownEnd : storage.consumeCooldownEnd))
+        let cooldownString = (cancelVisible && timerActive) ? minCooldownString : maxCooldownString
         
         return ZStack {
-            Rectangle() // TODO change this out to be a pink circle that comes out of the pink circle when it reaches the apex w 1 min to
-                .fill(.shadow(.inner(color: Color(hue: 300/360, saturation: 0.75, brightness: 1), radius: 120)))
-                .foregroundStyle(.black)
-                .frame(width: UIScreen.main.bounds.width + 220, height: UIScreen.main.bounds.height + 220)
-                .offset(y: -10)
-                .opacity(show1mWarning ? 1 : 0)
-                .animation(.easeInOut(duration: 1), value: show1mWarning)
-            Circle()
-                .foregroundStyle(RadialGradient(colors: [.black, Color(hue: 300/360, saturation: 0.75, brightness: 1, opacity: 0.3), Color(hue: 300/360, saturation: 0.75, brightness: 1, opacity: 0.3), .black], center: .center, startRadius: 1000 - (show15sWarning ?? 0), endRadius: 3000 - (show15sWarning ?? 0)))
-                .frame(width: 1000, height: 1000)
-                .opacity(show15sWarning != nil ? 1 : 0)
-            if projectActive {
+//            Rectangle() // TODO change this out to be a pink circle that comes out of the pink circle when it reaches the apex w 1 min to
+//                .fill(.shadow(.inner(color: Color(hue: 300/360, saturation: 0.75, brightness: 1), radius: 120)))
+//                .foregroundStyle(.black)
+//                .frame(width: UIScreen.main.bounds.width + 220, height: UIScreen.main.bounds.height + 220)
+//                .offset(y: -10)
+//                .opacity(show1mWarning ? 1 : 0)
+//                .animation(.easeInOut(duration: 1), value: show1mWarning)
+//            Circle()
+//                .foregroundStyle(RadialGradient(colors: [.black, Color(hue: 300/360, saturation: 0.75, brightness: 1, opacity: 0.3), Color(hue: 300/360, saturation: 0.75, brightness: 1, opacity: 0.3), .black], center: .center, startRadius: 1000 - (show15sWarning ?? 0), endRadius: 3000 - (show15sWarning ?? 0)))
+//                .frame(width: 1000, height: 1000)
+//                .opacity(show15sWarning != nil ? 1 : 0)
+            if timerActive {
                 Circle() // TODO redo all this animation and probably split this into 3 separate circles so i don't have to worry about the resetting issue
                 // i want to be able to come in at any given time and have everything in a set place, and remove as many of these if {} setups as possible in the view
                     .fill(yellow)
@@ -109,8 +129,8 @@ struct ContentView: View {
                     }
             }
             VStack {
-                Spacer().frame(height: 171)
-                Text(getDateString(Date(timeIntervalSinceReferenceDate: storage.lastEndTime)))
+                Spacer()//.frame(height: 171)
+                Text(getDateString(Date(timeIntervalSinceReferenceDate: project ? storage.projectEnd : storage.consumeEnd)))
                     .font(.custom("Baskerville", size: 36))
                     .foregroundStyle(.black)
                     .frame(height: 40)
@@ -119,7 +139,7 @@ struct ContentView: View {
                     .foregroundStyle(.black)
                     .frame(height: 50)
                     .padding(.bottom, 5)
-                Text((cancelVisible || !projectActive) ? getMinimumCooldownTimeString() : getMaximumCooldownTimeString())
+                Text((cancelVisible || !timerActive) ? getMinimumCooldownTimeString() : getMaximumCooldownTimeString())
                     .font(.custom("Baskerville", size: 30))
                     .foregroundStyle(pink)
                 Text(cooldownString)
@@ -129,19 +149,25 @@ struct ContentView: View {
                 Button(action: {
                     withAnimation {
                         cancelVisible = false
-                        storage.lastEndTime = Date.now.timeIntervalSinceReferenceDate
-                        storage.storeDate(of: .lastEndTime, storage.lastEndTime)
+                        if project {
+                            storage.projectEnd = Date.now.timeIntervalSinceReferenceDate
+                            storage.storeDate(of: .projectEnd, storage.projectEnd)
+                        } else {
+                            storage.consumeEnd = Date.now.timeIntervalSinceReferenceDate
+                            print("cancelling consuming! new end time:", storage.consumeEnd)
+                            storage.storeDate(of: .consumeEnd, storage.consumeEnd)
+                        }
                     }
                 }, label: {
                     Text("cancel")
                 })
-                .opacity(cancelVisible && storage.lastEndTime > Date.now.timeIntervalSinceReferenceDate ? 1 : 0)
+                .opacity(cancelVisible && ((project ? storage.projectEnd : storage.consumeEnd) > Date.now.timeIntervalSinceReferenceDate) ? 1 : 0)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+//        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.black)
         .onTapGesture {
-            if storage.lastEndTime > Date.now.timeIntervalSinceReferenceDate {
+            if (project ? storage.projectEnd : storage.consumeEnd) > Date.now.timeIntervalSinceReferenceDate {
                 cancelVisible.toggle()
             }
         }
@@ -161,10 +187,10 @@ struct ContentView: View {
                 .font(.custom("Baskerville", size: 48))
                 .foregroundStyle(yellow)
                 .padding(.bottom, 5)
-            Text(getTimeString(proposedDuration*(1 + projectCooldownRatio)))
+            Text(getTimeString(proposedDuration*(1 + (project ? storage.projectRatio : storage.consumeRatio))))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
-            Text(getDateString(.now + proposedDuration*(1 + projectCooldownRatio)))
+            Text(getDateString(.now + proposedDuration*(1 + (project ? storage.projectRatio : storage.consumeRatio))))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Spacer().frame(height: 77.5)
@@ -214,10 +240,10 @@ struct ContentView: View {
             .font(.custom("Baskerville", size: 48))
             .foregroundStyle(yellow)
             .padding(.bottom, 5)
-            Text(getTimeString(proposedDuration*(1 + projectCooldownRatio)))
+            Text(getTimeString(proposedDuration*(1 + (project ? storage.projectRatio : storage.consumeRatio))))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
-            Text(getDateString(.now + proposedDuration*(1 + projectCooldownRatio)))
+            Text(getDateString(.now + proposedDuration*(1 + (project ? storage.projectRatio : storage.consumeRatio))))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Spacer().frame(height: 77.5)
@@ -262,10 +288,10 @@ struct ContentView: View {
                 .font(.custom("Baskerville", size: 48))
                 .foregroundStyle(yellow)
                 .padding(.bottom, 5)
-            Text(getTimeString(proposedDuration*(1 + projectCooldownRatio)))
+            Text(getTimeString(proposedDuration*(1 + (project ? storage.projectRatio : storage.consumeRatio))))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
-            Text(getDateString(.now + proposedDuration*(1 + projectCooldownRatio)))
+            Text(getDateString(.now + proposedDuration*(1 + (project ? storage.projectRatio : storage.consumeRatio))))
                 .font(.custom("Baskerville", size: 30))
                 .foregroundStyle(pink)
             Spacer().frame(height: 77.5)
@@ -293,8 +319,20 @@ struct ContentView: View {
     var timerOptionsView: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("project timer")
+            Text("cooldown timer")
             Spacer()
+            HStack {
+                Button(action: {
+                    setDuration = true
+                }, label: {
+                    Text("__m")
+                })
+                Button(action: {
+                    setEndTime = true
+                }, label: {
+                    Text(",__")
+                }).selectionDisabled()
+            }
             HStack {
                 timer(10800)
                 timer(7200)
@@ -314,18 +352,6 @@ struct ContentView: View {
                 timer(180)
                 timer(120)
                 timer(60)
-            }
-            HStack {
-                Button(action: {
-                    setDuration = true
-                }, label: {
-                    Text("__m")
-                })
-                Button(action: {
-                    setEndTime = true
-                }, label: {
-                    Text(",__")
-                }).selectionDisabled()
             }
             Spacer().frame(height: 50)
         }
@@ -368,9 +394,15 @@ struct ContentView: View {
     
     func startTimer(with duration: TimeInterval) {
         withAnimation {
-            storage.lastStartTime = Date.now.timeIntervalSinceReferenceDate
-            storage.lastEndTime = storage.lastStartTime + duration
-            storage.storeDates()
+            if project {
+                storage.projectStart = Date.now.timeIntervalSinceReferenceDate
+                storage.projectEnd = storage.projectStart + duration
+                storage.storeProjectDates()
+            } else {
+                storage.consumeStart = Date.now.timeIntervalSinceReferenceDate
+                storage.consumeEnd = storage.consumeStart + duration
+                storage.storeConsumeDates()
+            }
             possibleDuration = nil
             possibleEndTime = nil
             focusState = false
@@ -381,7 +413,7 @@ struct ContentView: View {
     }
     
     func getProjectTimeString() -> String {
-        let diffInterval = storage.lastEndTime - Date.now.timeIntervalSinceReferenceDate
+        let diffInterval = (project ? storage.projectEnd : storage.consumeEnd) - Date.now.timeIntervalSinceReferenceDate
         if diffInterval < 0 {
             return ""
         }
@@ -389,19 +421,19 @@ struct ContentView: View {
     }
     
     func getMinimumCooldownTimeString() -> String {
-        if storage.lastEndTime > Date.now.timeIntervalSinceReferenceDate {
-            let diffInterval = Date.now.timeIntervalSinceReferenceDate - storage.lastStartTime
+        if storage.projectEnd > Date.now.timeIntervalSinceReferenceDate {
+            let diffInterval = Date.now.timeIntervalSinceReferenceDate - (project ? storage.projectStart : storage.consumeStart)
             if diffInterval < 0 { return "" }
-            return getTimeString(diffInterval*projectCooldownRatio)
+            return getTimeString(diffInterval*(project ? storage.projectRatio : storage.consumeRatio))
         } else {
-            let diffInterval = storage.cooldownEndTime - Date.now.timeIntervalSinceReferenceDate
+            let diffInterval = (project ? storage.projectCooldownEnd : storage.consumeCooldownEnd) - Date.now.timeIntervalSinceReferenceDate
             if diffInterval < 0 { return "" }
             return getTimeString(diffInterval)
         }
     }
     
     func getMaximumCooldownTimeString() -> String {
-        let diffInterval = storage.cooldownEndTime - Date.timeIntervalSinceReferenceDate
+        let diffInterval = (project ? storage.projectCooldownEnd : storage.consumeCooldownEnd) - Date.timeIntervalSinceReferenceDate
         if diffInterval < 0 { return "" }
         return getTimeString(diffInterval)
     }
