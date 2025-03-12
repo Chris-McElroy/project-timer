@@ -82,6 +82,10 @@ class Storage: ObservableObject {
                     self.projectEnd = newDict[Key.projectEnd.rawValue] ?? 0
                     self.consumeStart = newDict[Key.consumeStart.rawValue] ?? 0
                     self.consumeEnd = newDict[Key.consumeEnd.rawValue] ?? 0
+                    UserDefaults.standard.set(self.projectStart, forKey: Key.projectStart.rawValue)
+                    UserDefaults.standard.set(self.projectEnd, forKey: Key.projectEnd.rawValue)
+                    UserDefaults.standard.set(self.consumeStart, forKey: Key.consumeStart.rawValue)
+                    UserDefaults.standard.set(self.consumeEnd, forKey: Key.consumeEnd.rawValue)
                     print("from 4: changed consume end from", oldce, "to", self.consumeEnd, "based on update#", self.updated)
                 }
             }
@@ -138,36 +142,156 @@ class Storage: ObservableObject {
         UserDefaults.standard.bool(forKey: key.rawValue)
     }
     
-    var projectTime: TimeInterval {
+    var projectActiveTime: TimeInterval {
         projectEnd - projectStart
     }
     
-    var projectActive: Bool {
-        return Date.now.timeIntervalSinceReferenceDate <= projectEnd
+    var projectActiveSpent: TimeInterval {
+        Date.now.timeIntervalSinceReferenceDate - projectStart
+    }
+    
+    var projectActiveRemaining: TimeInterval {
+        projectEnd - Date.now.timeIntervalSinceReferenceDate
+    }
+    
+    var projectActiveRatio: Double {
+        min(1, max(0, projectActiveSpent/projectActiveTime))
+    }
+
+    var projectCooldownTime: TimeInterval {
+        projectActiveTime*projectRatio
     }
     
     var projectCooldownEnd: TimeInterval {
-        projectEnd + projectRatio*projectTime
+        projectEnd + projectCooldownTime
+    }
+    
+    var projectCooldownSpent: TimeInterval {
+        Date.now.timeIntervalSinceReferenceDate - projectEnd
+    }
+    
+    var projectCooldownRemaining: TimeInterval {
+        projectCooldownEnd - Date.now.timeIntervalSinceReferenceDate
+    }
+    
+    var projectCooldownRatio: Double {
+        min(1, max(0, projectCooldownSpent/projectCooldownTime))
+    }
+    
+    var projectActive: Bool {
+        Date.now.timeIntervalSinceReferenceDate <= projectEnd
+    }
+    
+    var projectAvailable: Bool {
+        Date.now.timeIntervalSinceReferenceDate > projectCooldownEnd
     }
     
     var projectCooldown: Bool {
-        return Date.now.timeIntervalSinceReferenceDate > projectEnd && projectCooldownEnd > Date.now.timeIntervalSinceReferenceDate
+        !projectAvailable && !projectActive
     }
     
-    var consumeTime: TimeInterval {
+    var consumeActiveTime: TimeInterval {
         consumeEnd - consumeStart
     }
     
-    var consumeActive: Bool {
-        return Date.now.timeIntervalSinceReferenceDate <= consumeEnd
+    var consumeActiveSpent: TimeInterval {
+        Date.now.timeIntervalSinceReferenceDate - consumeStart
+    }
+    
+    var consumeActiveRemaining: TimeInterval {
+        consumeEnd - Date.now.timeIntervalSinceReferenceDate
+    }
+    
+    var consumeActiveRatio: Double {
+        min(1, max(0, consumeActiveSpent/consumeActiveTime))
+    }
+
+    var consumeCooldownTime: TimeInterval {
+        consumeActiveTime*consumeRatio
     }
     
     var consumeCooldownEnd: TimeInterval {
-        consumeEnd + consumeRatio*consumeTime
+        consumeEnd + consumeCooldownTime
+    }
+    
+    var consumeCooldownSpent: TimeInterval {
+        Date.now.timeIntervalSinceReferenceDate - consumeEnd
+    }
+    
+    var consumeCooldownRemaining: TimeInterval {
+        consumeCooldownEnd - Date.now.timeIntervalSinceReferenceDate
+    }
+    
+    var consumeCooldownRatio: Double {
+        min(1, max(0, consumeCooldownSpent/consumeCooldownTime))
+    }
+    
+    var consumeActive: Bool {
+        Date.now.timeIntervalSinceReferenceDate <= consumeEnd
+    }
+    
+    var consumeAvailable: Bool {
+        Date.now.timeIntervalSinceReferenceDate > consumeCooldownEnd
     }
     
     var consumeCooldown: Bool {
-        return Date.now.timeIntervalSinceReferenceDate > consumeEnd && consumeCooldownEnd > Date.now.timeIntervalSinceReferenceDate
+        !consumeAvailable && !consumeActive
+    }
+    
+    func start(_ project: Bool) -> TimeInterval {
+        project ? projectStart : consumeStart
+    }
+    
+    func end(_ project: Bool) -> TimeInterval {
+        project ? projectEnd : consumeEnd
+    }
+    
+    func activeTime(_ project: Bool) -> TimeInterval {
+        project ? projectActiveTime : consumeActiveTime
+    }
+    
+    func activeSpent(_ project: Bool) -> TimeInterval {
+        project ? projectActiveSpent : consumeActiveSpent
+    }
+    
+    func activeRemaining(_ project: Bool) -> TimeInterval {
+        project ? projectActiveRemaining : consumeActiveRemaining
+    }
+    
+    func activeRatio(_ project: Bool) -> Double {
+        project ? projectActiveRatio : consumeActiveRatio
+    }
+
+    func cooldownTime(_ project: Bool) -> TimeInterval {
+        project ? projectCooldownTime : consumeCooldownTime
+    }
+    
+    func cooldownEnd(_ project: Bool) -> TimeInterval {
+        project ? projectCooldownEnd : consumeCooldownEnd
+    }
+    
+    func cooldownSpent(_ project: Bool) -> TimeInterval {
+        project ? projectCooldownSpent : consumeCooldownSpent
+    }
+    
+    func cooldownRemaining(_ project: Bool) -> TimeInterval {
+        project ? projectCooldownRemaining : consumeCooldownRemaining
+    }
+    
+    func cooldownRatio(_ project: Bool) -> Double {
+        project ? projectCooldownRatio : consumeCooldownRatio
+    }
+    
+    func active(_ project: Bool) -> Bool {
+        project ? projectActive : consumeActive
+    }
+    
+    func available(_ project: Bool) -> Bool {
+        project ? projectAvailable : consumeAvailable
+    }
+    
+    func cooldown(_ project: Bool) -> Bool {
+        project ? projectCooldown : consumeCooldown
     }
 }
 
