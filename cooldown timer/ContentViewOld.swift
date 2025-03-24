@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  project timer
+//  cooldown timer
 //
 //  Created by 4 on '24.12.5.
 //

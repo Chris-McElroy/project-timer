@@ -1,6 +1,6 @@
 //
-//  project_timerApp.swift
-//  project timer
+//  cooldown_timerApp.swift
+//  cooldown timer
 //
 //  Created by 4 on '24.12.5.
 //
@@ -9,7 +9,7 @@ import SwiftUI
 import FirebaseCore
 
 @main
-struct project_timerApp: App {
+struct cooldown_timerApp: App {
     // register app delegate for Firebase setup
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     

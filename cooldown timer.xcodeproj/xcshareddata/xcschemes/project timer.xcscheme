@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1E0561952D029A11000CBD20"
-               BuildableName = "project timer.app"
-               BlueprintName = "project timer"
-               ReferencedContainer = "container:project timer.xcodeproj">
+               BuildableName = "cooldown timer.app"
+               BlueprintName = "cooldown timer"
+               ReferencedContainer = "container:cooldown timer.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1E0561952D029A11000CBD20"
-            BuildableName = "project timer.app"
-            BlueprintName = "project timer"
-            ReferencedContainer = "container:project timer.xcodeproj">
+            BuildableName = "cooldown timer.app"
+            BlueprintName = "cooldown timer"
+            ReferencedContainer = "container:cooldown timer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1E0561952D029A11000CBD20"
-            BuildableName = "project timer.app"
-            BlueprintName = "project timer"
-            ReferencedContainer = "container:project timer.xcodeproj">
+            BuildableName = "cooldown timer.app"
+            BlueprintName = "cooldown timer"
+            ReferencedContainer = "container:cooldown timer.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

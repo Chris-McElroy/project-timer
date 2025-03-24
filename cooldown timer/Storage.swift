@@ -1,6 +1,6 @@
 //
 //  Storage.swift
-//  project timer
+//  cooldown timer
 //
 //  Created by 4 on '24.12.8.
 //
@@ -45,6 +45,7 @@ class Storage: ObservableObject {
         projectRatio = Storage.getDouble(for: .projectRatio)
         consumeRatio = Storage.getDouble(for: .consumeRatio)
         updated = Storage.getDouble(for: .updated)
+        storeEndsForShortcuts()
         
         if projectRatio == 0 { projectRatio = 2.0 }
         if consumeRatio == 0 { consumeRatio = 4.0 }
@@ -62,6 +63,7 @@ class Storage: ObservableObject {
                 }
             }
         }
+        
         _ = ref.observe(DataEventType.value, with: { snapshot in
             if let dict = snapshot.value as? [String: [String: Double]] {
                 guard let newDict = dict.first(where: { $0.key != self.myID })?.value else { return }
@@ -77,7 +79,6 @@ class Storage: ObservableObject {
                     self.updated = (newDict[Key.updated.rawValue] ?? 0) + 0.001
                     Storage.set(self.updated, for: .updated)
                     self.ref.child(self.myID).removeValue()
-                    let oldce = self.consumeEnd
                     self.projectStart = newDict[Key.projectStart.rawValue] ?? 0
                     self.projectEnd = newDict[Key.projectEnd.rawValue] ?? 0
                     self.consumeStart = newDict[Key.consumeStart.rawValue] ?? 0
@@ -86,7 +87,7 @@ class Storage: ObservableObject {
                     UserDefaults.standard.set(self.projectEnd, forKey: Key.projectEnd.rawValue)
                     UserDefaults.standard.set(self.consumeStart, forKey: Key.consumeStart.rawValue)
                     UserDefaults.standard.set(self.consumeEnd, forKey: Key.consumeEnd.rawValue)
-                    print("from 4: changed consume end from", oldce, "to", self.consumeEnd, "based on update#", self.updated)
+                    self.storeEndsForShortcuts()
                 }
             }
         })
@@ -98,9 +99,7 @@ class Storage: ObservableObject {
         updated = Date.now.timeIntervalSinceReferenceDate
         Storage.set(updated, for: .updated)
         ref.child(myID).child(Key.updated.rawValue).setValue(updated)
-        if key == .consumeEnd {
-            print("just posted update", consumeEnd, "update#", updated)
-        }
+        storeEndsForShortcuts()
     }
     
     func storeProjectDates() {
@@ -111,6 +110,7 @@ class Storage: ObservableObject {
         updated = Date.now.timeIntervalSinceReferenceDate
         Storage.set(updated, for: .updated)
         ref.child(myID).child(Key.updated.rawValue).setValue(updated)
+        storeEndsForShortcuts()
     }
     
     func storeConsumeDates() {
@@ -121,6 +121,31 @@ class Storage: ObservableObject {
         updated = Date.now.timeIntervalSinceReferenceDate
         Storage.set(updated, for: .updated)
         ref.child(myID).child(Key.updated.rawValue).setValue(updated)
+        storeEndsForShortcuts()
+    }
+    
+    func storeEndsForShortcuts() {
+        let directory = URL.documentsDirectory
+        let endsFile = directory.appendingPathComponent("ends.txt")
+        let endsDict: [String: String] = ["project": projectEnd.formatted(), "consume": consumeEnd.formatted()]
+        
+        // check existing data
+        do {
+            let nsData = try NSDictionary(contentsOf: endsFile, error: {}())
+            let oldData: [String: String] = Dictionary(_immutableCocoaDictionary: nsData)
+            if oldData == endsDict { return }
+        } catch {
+            print("couldn't get contents")
+            return
+        }
+        
+        // write current ends
+        do {
+            try NSDictionary(dictionary: endsDict, copyItems: false).write(to: endsFile)
+        }
+        catch {
+            print("couldn't write to ends file", error.localizedDescription)
+        }
     }
     
     static func set(_ value: Any?, for key: Key) {
@@ -325,5 +350,13 @@ extension Double {
     
     static func ~<=(lhs: Double, rhs: Double) -> Bool {
         return lhs < rhs + 0.00001
+    }
+}
+
+extension TimeInterval {
+    func formatted() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
+        return formatter.string(from: Date(timeIntervalSinceReferenceDate: self))
     }
 }
